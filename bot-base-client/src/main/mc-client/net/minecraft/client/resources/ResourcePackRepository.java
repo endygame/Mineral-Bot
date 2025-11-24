@@ -24,13 +24,10 @@ import java.io.IOException;
 import java.util.*;
 
 public class ResourcePackRepository {
-    protected static final FileFilter resourcePackFilter = new FileFilter() {
-
-        public boolean accept(File p_accept_1_) {
-            boolean var2 = p_accept_1_.isFile() && p_accept_1_.getName().endsWith(".zip");
-            boolean var3 = p_accept_1_.isDirectory() && (new File(p_accept_1_, "pack.mcmeta")).isFile();
-            return var2 || var3;
-        }
+    protected static final FileFilter resourcePackFilter = p_accept_1_ -> {
+        boolean var2 = p_accept_1_.isFile() && p_accept_1_.getName().endsWith(".zip");
+        boolean var3 = p_accept_1_.isDirectory() && (new File(p_accept_1_, "pack.mcmeta")).isFile();
+        return var2 || var3;
     };
     private final File dirResourcepacks;
     public final IResourcePack rprDefaultResourcePack;
@@ -197,9 +194,9 @@ public class ResourcePackRepository {
         }
 
         public void updateResourcePack() throws IOException {
-            this.reResourcePack = (IResourcePack) (this.resourcePackFile.isDirectory()
+            this.reResourcePack = this.resourcePackFile.isDirectory()
                     ? new FolderResourcePack(this.resourcePackFile)
-                    : new FileResourcePack(this.resourcePackFile));
+                    : new FileResourcePack(this.resourcePackFile);
             this.rePackMetadataSection = (PackMetadataSection) this.reResourcePack
                     .getPackMetadata(ResourcePackRepository.this.rprMetadataSerializer, "pack");
 
@@ -261,9 +258,9 @@ public class ResourcePackRepository {
 
         public String toString() {
             return String.format("%s:%s:%d",
-                    new Object[]{this.resourcePackFile.getName(),
-                            this.resourcePackFile.isDirectory() ? "folder" : "zip",
-                            Long.valueOf(this.resourcePackFile.lastModified())});
+                    this.resourcePackFile.getName(),
+                    this.resourcePackFile.isDirectory() ? "folder" : "zip",
+                    Long.valueOf(this.resourcePackFile.lastModified()));
         }
 
         Entry(File p_i1296_2_, Object p_i1296_3_) {
