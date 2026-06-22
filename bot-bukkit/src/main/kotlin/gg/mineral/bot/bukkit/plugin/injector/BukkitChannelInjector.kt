@@ -3,6 +3,7 @@ package gg.mineral.bot.bukkit.plugin.injector
 import com.github.retrooper.packetevents.util.reflection.ReflectionObject
 import com.viaversion.viaversion.api.protocol.packet.State
 import com.viaversion.viaversion.util.ReflectionUtil
+import com.viaversion.viaversion.util.SynchronizedListWrapper
 import gg.mineral.bot.api.injector.BotChannelInjector
 import io.github.retrooper.packetevents.util.InjectedList
 import io.github.retrooper.packetevents.util.SpigotReflectionUtil
@@ -102,20 +103,40 @@ class BukkitChannelInjector(
             bootstrapAcceptor, "childHandler"
         ) ?: error("Unable to find child handler in bootstrap acceptor.")
 
-        // Derive channel initializer from the pipeline
+        // Keep the Via-wrapped main-server initializer so the bot gets the complete protocol chain,
+        // including ViaBackwards and ViaRewind.
         val channelInitializer = BukkitChannelInitializer(oldInitializer)
 
-        // Add new bot local channel future to the list
-        wrappedList.add(
-            ServerBootstrap()
-                .group(eventLoopGroup)
-                .channel(LocalServerChannel::class.java)
-                .localAddress(address)
-                .childHandler(channelInitializer).bind().syncUninterruptibly()
-        )
+        val localFuture = ServerBootstrap()
+            .group(eventLoopGroup)
+            .channel(LocalServerChannel::class.java)
+            .localAddress(address)
+            .childHandler(channelInitializer).bind().syncUninterruptibly()
+
+        // Via wraps every future added through SynchronizedListWrapper. That would wrap our local
+        // initializer around the already Via-wrapped main initializer and inject via-encoder twice.
+        // PacketEvents may itself wrap Via's list, so walk every wrapper: run PacketEvents' hooks,
+        // skip Via's add hook, and insert into the underlying server list.
+        addWithoutViaInjection(wrappedList, localFuture)
 
         // Write the list
         reflectServerConnection.writeList(connectionChannelsListIndex, wrappedList)
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun addWithoutViaInjection(list: MutableList<ChannelFuture>, future: ChannelFuture) {
+        when (list) {
+            is InjectedList<*> -> {
+                val injected = list as InjectedList<ChannelFuture>
+                injected.pushBackAction().accept(future)
+                addWithoutViaInjection(injected.originalList() as MutableList<ChannelFuture>, future)
+            }
+            is SynchronizedListWrapper<*> -> {
+                val via = list as SynchronizedListWrapper<ChannelFuture>
+                addWithoutViaInjection(via.originalList() as MutableList<ChannelFuture>, future)
+            }
+            else -> list.add(future)
+        }
     }
 
     private inline fun <reified T> getFieldSafe(instance: Any, fieldName: String): T? {

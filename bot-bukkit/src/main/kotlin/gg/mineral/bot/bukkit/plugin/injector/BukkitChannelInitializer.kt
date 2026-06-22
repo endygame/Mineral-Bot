@@ -15,6 +15,7 @@ class BukkitChannelInitializer(private val oldInit: ChannelInitializer<Channel>)
     }
 
     override fun initChannel(channel: Channel) {
+        // The cloned main-server initializer installs the complete Via protocol chain exactly once.
         INIT_CHANNEL_METHOD.invoke(oldInit, channel)
     }
 

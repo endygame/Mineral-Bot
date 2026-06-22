@@ -91,7 +91,9 @@ class NMSServerPlayer(
     }
 
     override fun setYawPitch(yaw: Float, pitch: Float) {
-        entityPlayer.setYawPitch(yaw, pitch)
+        // Polar keeps Entity#setYawPitch protected (MineralSpigot exposes it); the public
+        // setLocation(x,y,z,yaw,pitch) sets the same rotation fields without reflection.
+        entityPlayer.setLocation(entityPlayer.locX, entityPlayer.locY, entityPlayer.locZ, yaw, pitch)
     }
 
     override val itemInHandIndex: Int
@@ -116,7 +118,13 @@ class NMSServerPlayer(
         get() = entityPlayer.playerInteractManager.gameMode.id
 
     override fun initializeGameMode() {
-        MinecraftServer.getServer().playerList.a(entityPlayer, null, entityPlayer.getWorld())
+        // Polar keeps PlayerList#a(EntityPlayer,EntityPlayer,World) private (MineralSpigot exposes
+        // it); invoke reflectively. This (re)initialises the player's interaction manager/gamemode.
+        val m = PlayerList::class.java.getDeclaredMethod(
+            "a", EntityPlayer::class.java, EntityPlayer::class.java, World::class.java
+        )
+        m.isAccessible = true
+        m.invoke(MinecraftServer.getServer().playerList, entityPlayer, null, entityPlayer.getWorld())
     }
 
     override val isWorldHardcore: Boolean
