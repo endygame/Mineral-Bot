@@ -23,6 +23,11 @@ class MeleeCombatGoal(clientInstance: ClientInstance) : InventoryGoal(clientInst
     private var lastBounceTime: Long = 0
     private var lastTargetSwitchTick = 0
     private var lastSprintResetTick = 0
+
+    // Knockback-reaction window: while the current tick is below this, the bot stops driving
+    // sprint-forward so the server's knockback velocity actually lands instead of being cancelled
+    // by the bot re-accelerating into the hit (the "bots eat kb" bug). 0 = not reacting.
+    private var knockbackReactionEndTick = 0
     private var currentHorizontalAimAcceleration = 1.0f
     private var currentVerticalAimAcceleration = 1.0f
     private var lastHorizontalTurnSignum = 1
@@ -445,7 +450,15 @@ class MeleeCombatGoal(clientInstance: ClientInstance) : InventoryGoal(clientInst
 
     override fun onTick(tick: Tick) {
 
-        pressKey(Key.Type.KEY_W, Key.Type.KEY_LCONTROL)
+        // Drive forward toward the target, EXCEPT during the knockback-reaction window: while
+        // recoiling from a hit, releasing sprint-W stops the client from re-accelerating into the
+        // attacker and cancelling the server's knockback. Strafe (A/D) and attacks still run, so the
+        // bot keeps fighting - it just takes the knockback like a human instead of eating it.
+        if (clientInstance.currentTick >= knockbackReactionEndTick) {
+            pressKey(Key.Type.KEY_W, Key.Type.KEY_LCONTROL)
+        } else {
+            unpressKey(Key.Type.KEY_W, Key.Type.KEY_LCONTROL)
+        }
 
 
         val meleeWeaponSlot = getBestMeleeWeaponSlot()
@@ -481,11 +494,21 @@ class MeleeCombatGoal(clientInstance: ClientInstance) : InventoryGoal(clientInst
     }
 
     fun onEntityHurt(event: EntityHurtEvent): Boolean {
+        val entity = event.attackedEntity
+        val fakePlayer = clientInstance.fakePlayer
+
+        // The bot ITSELF just took a hit. The server has already applied the knockback velocity; if
+        // we keep holding sprint-W into the attacker the client re-accelerates forward and cancels
+        // most of it, so the bot barely moves while a human would fly back. Open a short reaction
+        // window where onTick releases forward movement so the knockback actually registers.
+        if (entity.uuid == fakePlayer.uuid) {
+            knockbackReactionEndTick = clientInstance.currentTick + KNOCKBACK_REACTION_TICKS
+            unpressKey(Key.Type.KEY_W, Key.Type.KEY_LCONTROL)
+            return false
+        }
+
         if (clientInstance.currentTick - lastSprintResetTick < 9) return false
 
-        val entity = event.attackedEntity
-
-        val fakePlayer = clientInstance.fakePlayer
         if (entity.y - fakePlayer.y > 1.5) return false
 
         val target = this.target
@@ -501,5 +524,12 @@ class MeleeCombatGoal(clientInstance: ClientInstance) : InventoryGoal(clientInst
     public override fun onGameLoop() {
         strafe()
         if (timeMillis() >= nextClick) attackTarget()
+    }
+
+    companion object {
+        // Ticks the bot stops driving sprint-forward after taking a hit so server knockback lands.
+        // ~4 ticks (200ms) covers the bulk of the launch (horizontal motion decays by friction each
+        // tick) without leaving the bot a sitting duck. Tune up for floatier kb, down for stickier.
+        private const val KNOCKBACK_REACTION_TICKS = 4
     }
 }
