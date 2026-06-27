@@ -60,7 +60,9 @@ object StandaloneLauncher {
         BotImpl.init()
         Minecraft.init()
 
-        Configurator.setRootLevel(Level.DEBUG)
+        // INFO by default (the per-packet DEBUG firehose is unusable + a disk/perf risk with many bots);
+        // set BOT_LOG_LEVEL=DEBUG to restore verbose tracing for a single-bot investigation.
+        Configurator.setRootLevel(Level.toLevel(System.getenv("BOT_LOG_LEVEL"), Level.INFO))
         System.setProperty("java.net.preferIPv4Stack", "true")
         GameLoop.start()
 
@@ -72,6 +74,15 @@ object StandaloneLauncher {
                 }
             }
         })
+
+        // Remote-control mode: when BOT_CONTROL_PORT is set, run as the off-box bot host driven by Moon
+        // over TCP (no interactive console). The control server brings real-TCP bots up/down on command.
+        val controlPort = System.getenv("BOT_CONTROL_PORT")?.toIntOrNull()
+        if (controlPort != null) {
+            gg.mineral.bot.standalone.control.BotControlServer(controlPort, file).start()
+            Object().let { lock -> synchronized(lock) { while (true) lock.wait() } }
+            return
+        }
 
         val terminal = TerminalBuilder.builder().build()
         val parser = DefaultParser()

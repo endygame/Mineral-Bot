@@ -163,11 +163,22 @@ public class NetworkManager extends SimpleChannelInboundHandler<Packet> {
      * send and receive
      */
     public void setConnectionState(EnumConnectionState state) {
-        this.connectionState = this.channel.attr(attrKeyConnectionState).getAndSet(state);
+        EnumConnectionState old = this.channel.attr(attrKeyConnectionState).getAndSet(state);
+        this.connectionState = old;
         this.channel.attr(attrKeyReceivable).set(state.func_150757_a(this.isClientSide));
         this.channel.attr(attrKeySendable).set(state.func_150754_b(this.isClientSide));
         this.channel.config().setAutoRead(true);
         logger.debug("Enabled auto read");
+        // Swap netHandler to the new protocol NOW, on the calling thread, instead of deferring it to
+        // processReceivedPackets() on the game thread. The protocol attr above is already PLAY, so a
+        // priority PLAY packet (e.g. S00PacketKeepAlive) that arrives right after - processed inline on
+        // the netty thread in channelRead0 - would otherwise hit the stale NetHandlerLoginClient and throw
+        // ClassCastException (-> disconnect). Over real TCP the server's first KeepAlive reliably lands in
+        // that window. Updating connectionState here keeps processReceivedPackets from re-firing the swap.
+        if (this.netHandler != null && old != null && old != state) {
+            this.netHandler.onConnectionStateTransition(old, state);
+            this.connectionState = state;
+        }
     }
 
     public void channelInactive(@NotNull ChannelHandlerContext p_channelInactive_1_) {

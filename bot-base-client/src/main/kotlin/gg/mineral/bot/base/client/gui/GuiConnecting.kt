@@ -10,6 +10,7 @@ import net.minecraft.client.multiplayer.ServerAddress
 import net.minecraft.client.multiplayer.ServerData
 import net.minecraft.client.multiplayer.WorldClient
 import net.minecraft.client.network.NetHandlerLoginClient
+import gg.mineral.bot.base.client.network.ClientLoginHandler
 import net.minecraft.client.resources.I18n
 import net.minecraft.network.EnumConnectionState
 import net.minecraft.network.NetworkManager
@@ -53,7 +54,11 @@ open class GuiConnecting : GuiScreen {
                         this@GuiConnecting.networkManager = it
                         it
                             .setNetHandler(
-                                NetHandlerLoginClient(
+                                // Bot login handler: transitions LOGIN->PLAY to ClientNetHandler, which
+                                // installs BotController so thePlayer is a FakePlayer the AI can drive.
+                                // (Vanilla NetHandlerLoginClient -> NetHandlerPlayClient -> plain player,
+                                // leaving the AI blind: it sees no entities and only runs + swings.)
+                                ClientLoginHandler(
                                     it,
                                     this@GuiConnecting.mc, this@GuiConnecting.previousScreen
                                 )
@@ -134,7 +139,11 @@ open class GuiConnecting : GuiScreen {
                         this@GuiConnecting.networkManager = it
                         it
                             .setNetHandler(
-                                NetHandlerLoginClient(
+                                // Bot login handler: transitions LOGIN->PLAY to ClientNetHandler, which
+                                // installs BotController so thePlayer is a FakePlayer the AI can drive.
+                                // (Vanilla NetHandlerLoginClient -> NetHandlerPlayClient -> plain player,
+                                // leaving the AI blind: it sees no entities and only runs + swings.)
+                                ClientLoginHandler(
                                     it,
                                     this@GuiConnecting.mc, this@GuiConnecting.previousScreen
                                 )
