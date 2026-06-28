@@ -450,12 +450,20 @@ class MeleeCombatGoal(clientInstance: ClientInstance) : InventoryGoal(clientInst
 
     override fun onTick(tick: Tick) {
 
-        // Drive forward toward the target, EXCEPT during the knockback-reaction window: while
-        // recoiling from a hit, releasing sprint-W stops the client from re-accelerating into the
-        // attacker and cancelling the server's knockback. Strafe (A/D) and attacks still run, so the
-        // bot keeps fighting - it just takes the knockback like a human instead of eating it.
+        // Movement, EXCEPT during the knockback-reaction window: while recoiling from a hit, releasing
+        // sprint-W stops the client re-accelerating into the attacker and cancelling the server's knockback.
+        // Sprint ONLY while closing distance in a straight line (target > 4 blocks away). Holding sprint
+        // while strafing/mashing at melee range makes the server believe we're sprinting while we barely
+        // move forward - which a physics anticheat reads as non-physical ("moved incorrectly"). Walking in
+        // melee (W without sprint), like a real player, keeps reported movement consistent with actual speed.
         if (clientInstance.currentTick >= knockbackReactionEndTick) {
-            pressKey(Key.Type.KEY_W, Key.Type.KEY_LCONTROL)
+            pressKey(Key.Type.KEY_W)
+            val tgt = this.target
+            if (tgt != null && clientInstance.fakePlayer.distance3DTo(tgt) > 4.0f) {
+                pressKey(Key.Type.KEY_LCONTROL)
+            } else {
+                unpressKey(Key.Type.KEY_LCONTROL)
+            }
         } else {
             unpressKey(Key.Type.KEY_W, Key.Type.KEY_LCONTROL)
         }
