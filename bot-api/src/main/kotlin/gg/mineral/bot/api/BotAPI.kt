@@ -46,5 +46,9 @@ abstract class BotAPI {
 
     companion object {
         lateinit var INSTANCE: BotAPI
+
+        /** True once [INSTANCE] has been assigned — lets callers skip work when a load failed. */
+        val isInitialized: Boolean
+            get() = this::INSTANCE.isInitialized
     }
 }

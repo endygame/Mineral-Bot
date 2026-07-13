@@ -47,7 +47,13 @@ dependencies {
 
 shadowJar {
     relocate('net.minecraft', 'gg.mineral.minecraft') {
-        exclude 'net.minecraft.server.v1_8_R3.**'
+        // Keep the whole net.minecraft.server.* subtree un-relocated, not just v1_8_R3. The bundled
+        // packetevents builds its NMS package name from the string literal "net.minecraft.server."
+        // at runtime; relocating that constant to "gg.mineral.minecraft.server." made it look up a
+        // class that doesn't exist (NMS_ITEM_STACK_CLASS == null → NPE on load). Real 1.8 NMS only
+        // lives under net.minecraft.server.v1_8_R3, so the bot's own bundled client classes under
+        // net.minecraft.server.{management,network,integrated,...} collide with nothing on the server.
+        exclude 'net.minecraft.server.**'
     }
 
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE

@@ -36,13 +36,21 @@ class MineralBotPlugin : JavaPlugin() {
 
     override fun onEnable() {
         instance = this
+        // onLoad failed (e.g. NMS init) — BotAPI never initialized. Starting the GameLoop would
+        // spin coroutines that NPE on BotAPI.INSTANCE every tick, so bail out cleanly instead.
+        if (!BotAPI.isInitialized) {
+            logger.severe("MineralBot did not load correctly (see the onLoad error above); disabling.")
+            Bukkit.getPluginManager().disablePlugin(this)
+            return
+        }
         if (ownsPacketEvents) PacketEvents.getAPI().init()
         getCommand("mineralbot").executor = MineralBotCommand()
         GameLoop.start()
     }
 
     override fun onDisable() {
-        BotAPI.INSTANCE.despawnAll()
+        // Guard every step so a partial load (onLoad threw) doesn't throw again on shutdown.
+        if (BotAPI.isInitialized) BotAPI.INSTANCE.despawnAll()
         logger.info("Disabling MineralBotPlugin...")
 
         // Cancel all tasks to prevent memory leaks
@@ -54,8 +62,8 @@ class MineralBotPlugin : JavaPlugin() {
 
         shutdown()
 
-        ServerBotImpl.destroy()
+        if (BotAPI.isInitialized) ServerBotImpl.destroy()
 
-        if (ownsPacketEvents) PacketEvents.getAPI().terminate()
+        if (ownsPacketEvents && PacketEvents.getAPI() != null) PacketEvents.getAPI().terminate()
     }
 }
