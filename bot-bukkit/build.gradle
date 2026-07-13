@@ -37,7 +37,11 @@ dependencies {
     implementation project(':bot-base-client')
     compileOnly project(':bot-shared-library')
     compileOnly project(':bot-api')
-    compileOnly 'com.github.retrooper:packetevents-spigot:2.7.0'
+    // Bundled (not relocated): when the standalone packetevents plugin is installed, Bukkit's
+    // global class cache resolves these classes from that plugin instead (softdepend ordering),
+    // so both setups share one PacketEvents singleton. Self-init in MineralBotPlugin covers the
+    // plugin-absent case.
+    implementation 'com.github.retrooper:packetevents-spigot:2.7.0'
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
 }
 
