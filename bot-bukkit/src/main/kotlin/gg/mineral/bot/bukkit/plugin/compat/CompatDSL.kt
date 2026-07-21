@@ -90,11 +90,26 @@ fun newPlayerConnection(
     player: BukkitServerPlayer<*>,
 ): Any {
     return when (nmsVersion!!) {
-        ServerVersion.V_1_8_8 -> net.minecraft.server.v1_8_R3.PlayerConnection(
-            net.minecraft.server.v1_8_R3.MinecraftServer.getServer(),
-            channelHandler as net.minecraft.server.v1_8_R3.NetworkManager,
-            player.entityPlayer as net.minecraft.server.v1_8_R3.EntityPlayer
-        )
+        ServerVersion.V_1_8_8 -> {
+            val networkManager = channelHandler as net.minecraft.server.v1_8_R3.NetworkManager
+
+            // The in-process bot transport uses Netty's LocalAddress. CraftPlayer#getAddress only
+            // exposes InetSocketAddress values, so plugins such as Intave otherwise see null during
+            // PlayerJoinEvent and abort the bot's join path. Give the synthetic connection a local,
+            // non-routable peer address before any Bukkit join listeners run.
+            if (networkManager.socketAddress !is java.net.InetSocketAddress) {
+                networkManager.l = java.net.InetSocketAddress(
+                    java.net.InetAddress.getLoopbackAddress(),
+                    0
+                )
+            }
+
+            net.minecraft.server.v1_8_R3.PlayerConnection(
+                net.minecraft.server.v1_8_R3.MinecraftServer.getServer(),
+                networkManager,
+                player.entityPlayer as net.minecraft.server.v1_8_R3.EntityPlayer
+            )
+        }
 
         ServerVersion.V_1_7_10 -> TODO()
         ServerVersion.V_1_8 -> TODO()
