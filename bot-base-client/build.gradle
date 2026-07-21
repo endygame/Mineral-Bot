@@ -40,6 +40,11 @@ dependencies {
     implementation 'org.eclipse.jdt:org.eclipse.jdt.annotation:2.4.100'
     annotationProcessor 'org.eclipse.jdt:org.eclipse.jdt.annotation:2.4.100'
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
+    testImplementation 'org.jetbrains.kotlin:kotlin-test-junit5'
+}
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
 }
 
 sourceSets {

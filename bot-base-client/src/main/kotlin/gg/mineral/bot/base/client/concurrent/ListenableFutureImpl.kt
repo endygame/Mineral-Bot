@@ -5,43 +5,63 @@ import gg.mineral.bot.api.instance.ClientInstance
 import java.util.concurrent.ConcurrentLinkedQueue
 
 class ListenableFutureImpl<T : ClientInstance>(instance: T) : ListenableFuture<T>(instance) {
+    private val lock = Any()
     private val onCompleteListeners = ConcurrentLinkedQueue<(T) -> Unit>()
     private val onErrorListeners = ConcurrentLinkedQueue<(Throwable) -> Unit>()
+    private var failure: Throwable? = null
 
     override fun onComplete(consumer: (T) -> Unit): ListenableFuture<T> {
-        if (cancelled) return this
-        if (done) {
-            consumer(get())
-            return this
+        var callNow = false
+        synchronized(lock) {
+            if (cancelled) return this
+            if (done) {
+                callNow = failure == null
+            } else {
+                onCompleteListeners.add(consumer)
+            }
         }
-        onCompleteListeners.add(consumer)
+        if (callNow) {
+            consumer(get())
+        }
         return this
     }
 
     override fun onError(consumer: (Throwable) -> Unit): ListenableFuture<T> {
-        if (cancelled) return this
-        if (done) {
-            consumer(IllegalStateException("Future is already completed"))
-            return this
+        var completedFailure: Throwable? = null
+        synchronized(lock) {
+            if (cancelled) return this
+            if (done) {
+                completedFailure = failure
+            } else {
+                onErrorListeners.add(consumer)
+            }
         }
-        onErrorListeners.add(consumer)
+        completedFailure?.let(consumer)
         return this
     }
 
     fun complete() {
-        if (done || cancelled) return
-        done = true
-        onCompleteListeners.removeAll {
-            it(get())
-            true
+        val listeners: List<(T) -> Unit>
+        synchronized(lock) {
+            if (done || cancelled) return
+            done = true
+            listeners = onCompleteListeners.toList()
+            onCompleteListeners.clear()
+            onErrorListeners.clear()
         }
+        listeners.forEach { it(get()) }
     }
 
     fun fail(throwable: Throwable) {
-        if (done || cancelled) return
-        onErrorListeners.removeAll {
-            it(throwable)
-            true
+        val listeners: List<(Throwable) -> Unit>
+        synchronized(lock) {
+            if (done || cancelled) return
+            failure = throwable
+            done = true
+            listeners = onErrorListeners.toList()
+            onErrorListeners.clear()
+            onCompleteListeners.clear()
         }
+        listeners.forEach { it(throwable) }
     }
 }
